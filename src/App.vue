@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { courseForLesson, exportRecords, lessonById, persist, saveAttempt, setDownloaded, state, updateTokenClassification } from './store';
+import { courseForLesson, exportRecords, lessonById, markMistakeAgain, markMistakeRemembered, persist, saveAttempt, setDownloaded, state, updateTokenClassification } from './store';
 import type { ErrorCategory, Lesson, PracticeAttempt, PracticeView } from './types';
 import { compareSentence, scoreAttempt, segmentText } from './utils';
 
@@ -38,6 +38,17 @@ const resultSentence = computed(() => resultAttempt.value?.sentenceAttempts[sele
 const teacherAttempt = computed(() => state.attempts.find((attempt) => attempt.id === teacherAttemptId.value));
 const totalWords = computed(() => state.attempts.flatMap((attempt) => attempt.sentenceAttempts).flatMap((item) => item.tokens).length);
 const correctedWords = computed(() => state.attempts.flatMap((attempt) => attempt.sentenceAttempts).flatMap((item) => item.tokens).filter((token) => !token.correct && token.category !== 'unclassified').length);
+
+const reviewQueue = ref<string[]>([]);
+const reviewIndex = ref(0);
+const reviewRevealed = ref(false);
+const mistakeList = computed(() => Object.values(state.mistakes));
+const byErrorCount = (a: (typeof mistakeList.value)[number], b: (typeof mistakeList.value)[number]) => b.errorCount - a.errorCount || b.updatedAt.localeCompare(a.updatedAt);
+const dueMistakes = computed(() => mistakeList.value.filter((entry) => new Date(entry.dueAt).getTime() <= Date.now()).sort(byErrorCount));
+const topMistakes = computed(() => [...mistakeList.value].sort(byErrorCount).slice(0, 3));
+const nextDueAt = computed(() => mistakeList.value.map((entry) => entry.dueAt).filter((dueAt) => new Date(dueAt).getTime() > Date.now()).sort()[0] ?? '');
+const currentReviewEntry = computed(() => state.mistakes[reviewQueue.value[reviewIndex.value]]);
+const reviewRemaining = computed(() => Math.max(0, reviewQueue.value.length - reviewIndex.value));
 
 const categoryOptions: Array<{ value: ErrorCategory; label: string }> = [
   { value: 'unclassified', label: '未分类' },
@@ -190,6 +201,41 @@ function saveTeacherFeedback() {
   notify('教师反馈已保存');
 }
 
+function startReview() {
+  if (!dueMistakes.value.length) {
+    notify(nextDueAt.value ? `还没有到期错词，下次到期 ${formatDate(nextDueAt.value)}` : '还没有错词需要复习');
+    return;
+  }
+  reviewQueue.value = dueMistakes.value.map((entry) => entry.id);
+  reviewIndex.value = 0;
+  reviewRevealed.value = false;
+  view.value = 'review';
+  persist();
+}
+
+function advanceReview() {
+  reviewIndex.value += 1;
+  reviewRevealed.value = false;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function rememberReviewWord() {
+  const entry = currentReviewEntry.value;
+  if (!entry) return;
+  markMistakeRemembered(entry.id);
+  persist();
+  advanceReview();
+}
+
+function againReviewWord() {
+  const entry = currentReviewEntry.value;
+  if (!entry) return;
+  markMistakeAgain(entry.id);
+  reviewQueue.value.push(entry.id);
+  persist();
+  advanceReview();
+}
+
 function toggleTheme() {
   state.theme = state.theme === 'light' ? 'dark' : 'light';
 }
@@ -268,6 +314,23 @@ onBeforeUnmount(() => {
           <span>{{ online ? '● 在线 · 数据已保存到本机' : '● 离线模式 · 可继续已下载课程' }}</span>
           <span>{{ online ? '本地优先存储' : '恢复网络后继续保存' }}</span>
         </div>
+
+        <div class="section-head">
+          <h3>错词复习</h3>
+          <span>{{ dueMistakes.length ? `${dueMistakes.length} 词到期` : nextDueAt ? `下次到期 ${formatDate(nextDueAt)}` : '暂无错词' }}</span>
+        </div>
+        <article v-if="mistakeList.length" class="panel">
+          <div v-for="entry in topMistakes" :key="entry.id" class="mistake-row">
+            <div>
+              <strong>{{ entry.word }}</strong>
+              <p>错 {{ entry.errorCount }} 次 · 最近写成 {{ entry.lastActual || '（漏词）' }}</p>
+              <p>{{ entry.source }}</p>
+            </div>
+            <span class="level-badge" :class="{ due: new Date(entry.dueAt).getTime() <= Date.now() }">{{ new Date(entry.dueAt).getTime() <= Date.now() ? '到期' : formatDate(entry.dueAt) }}</span>
+          </div>
+          <var-button block type="primary" :disabled="!dueMistakes.length" @click="startReview">{{ dueMistakes.length ? `开始复习（${dueMistakes.length} 词到期）` : '暂无到期错词' }}</var-button>
+        </article>
+        <div v-else class="empty-state"><strong>还没有错词</strong>提交听写后，写错的词会自动汇总到这里复习。</div>
 
         <div class="section-head">
           <h3>课程库</h3>
@@ -393,6 +456,46 @@ onBeforeUnmount(() => {
         <section v-if="resultAttempt.teacherFeedback" class="panel"><div class="feedback-card"><strong>教师反馈</strong><p>{{ resultAttempt.teacherFeedback }}</p></div></section>
         <var-button block type="primary" @click="startLesson(activeLesson!)">返回本次课程</var-button>
         <var-button block type="default" variant="outline" style="margin-top: 10px" @click="downloadRecords">导出练习记录</var-button>
+      </div>
+
+      <div v-else-if="view === 'review'" class="page">
+        <header class="topbar">
+          <button class="back-button" aria-label="返回课程库" @click="view = 'library'">‹</button>
+          <div class="brand"><div class="brand-mark">R</div><div><h1>错词复习</h1><p>到期词优先，错得多的先练</p></div></div>
+          <span v-if="currentReviewEntry" class="status-chip">剩 {{ reviewRemaining }} 词</span>
+        </header>
+
+        <section v-if="currentReviewEntry" class="panel review-card">
+          <div class="review-meta">
+            <span>第 {{ reviewIndex + 1 }} / {{ reviewQueue.length }} 张</span>
+            <span>已错 {{ currentReviewEntry.errorCount }} 次</span>
+          </div>
+          <p class="review-source">{{ currentReviewEntry.source }}</p>
+          <div class="review-word" :class="{ concealed: !reviewRevealed }">{{ reviewRevealed ? currentReviewEntry.word : '· · ·' }}</div>
+          <div class="practice-actions">
+            <var-button block type="default" variant="outline" @click="replay(currentReviewEntry.sentenceText, 0.72)">重听句子</var-button>
+            <var-button block type="default" variant="outline" @click="replay(currentReviewEntry.word, 0.7)">重听单词</var-button>
+          </div>
+          <template v-if="reviewRevealed">
+            <div class="feedback-card">
+              <strong>正确答案：{{ currentReviewEntry.word }}</strong>
+              <p>最近一次写法：{{ currentReviewEntry.lastActual || '（漏词，未写出）' }}</p>
+              <p>出处原句：{{ currentReviewEntry.sentenceText }}</p>
+            </div>
+            <div class="practice-actions">
+              <var-button block type="warning" variant="outline" @click="againReviewWord">再练</var-button>
+              <var-button block type="primary" @click="rememberReviewWord">记住了</var-button>
+            </div>
+          </template>
+          <var-button v-else block type="primary" style="margin-top: 12px" @click="reviewRevealed = true">显示正确答案</var-button>
+        </section>
+
+        <section v-else class="panel result-score">
+          <h2>本轮复习完成</h2>
+          <p v-if="nextDueAt">全部到期错词已练完，下次到期：{{ formatDate(nextDueAt) }}</p>
+          <p v-else>全部到期错词已练完，暂无排期的复习。新的作答错误会自动加入复习。</p>
+          <var-button block type="primary" style="margin-top: 14px" @click="view = 'library'">返回课程库</var-button>
+        </section>
       </div>
 
       <div v-else-if="view === 'teacher'" class="page">

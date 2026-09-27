@@ -117,6 +117,18 @@ button, input, textarea { font: inherit; }
 .history-card p { color: var(--muted); font-size: .68rem; margin: 5px 0 0; }
 .teacher-editor { margin-top: 12px; }
 .teacher-editor textarea { width: 100%; min-height: 100px; border: 1px solid var(--line); border-radius: 13px; background: var(--card); color: var(--text); padding: 11px; resize: vertical; }
+.mistake-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: start; border-bottom: 1px solid var(--line); padding: 12px 0; }
+.mistake-row:first-of-type { padding-top: 2px; }
+.mistake-row:last-of-type { border-bottom: 0; padding-bottom: 14px; }
+.mistake-row strong { font-size: .92rem; }
+.mistake-row p { color: var(--muted); font-size: .68rem; margin: 4px 0 0; }
+.level-badge.due { background: #fff0f0; color: var(--danger); }
+.review-card { text-align: center; }
+.review-meta { display: flex; justify-content: space-between; color: var(--muted); font-size: .7rem; }
+.review-source { color: var(--muted); font-size: .7rem; margin: 10px 0 0; }
+.review-word { font-size: 2rem; font-weight: 800; letter-spacing: .04em; margin: 18px 0 6px; min-height: 2.6rem; }
+.review-word.concealed { color: var(--muted); letter-spacing: .3em; }
+.review-card .feedback-card { text-align: left; }
 .segmented { display: flex; padding: 3px; background: var(--line); border-radius: 12px; }
 .segmented button { border: 0; background: transparent; color: var(--muted); border-radius: 9px; padding: 7px 10px; cursor: pointer; font-size: .72rem; }
 .segmented button.active { background: var(--card); color: var(--text); box-shadow: 0 1px 5px rgb(0 0 0 / .09); font-weight: 700; }

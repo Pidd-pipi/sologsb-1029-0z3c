@@ -74,21 +74,21 @@ export const createInitialState = (): PersistedState => ({
       lessonTitle: '办理值机',
       courseTitle: '日常英语 · 机场与出行',
       submittedAt: '2026-09-24T10:20:00.000Z',
-      score: 84,
+      score: 82,
       teacherFeedback: '连读细节明显进步。注意 bags are 的词尾衔接，再听一遍第二句。',
       sentenceAttempts: [
         {
           sentenceId: 'airport-01-s1',
           source: 'I would like to check in for my flight to London.',
-          answer: 'I would like to check in for my flight to London',
-          score: 94,
+          answer: 'I would like to chek for my flight to London',
+          score: 82,
           tokens: [
             { index: 0, expected: 'I', actual: 'I', correct: true, category: 'unclassified', reason: '' },
             { index: 1, expected: 'would', actual: 'would', correct: true, category: 'unclassified', reason: '' },
             { index: 2, expected: 'like', actual: 'like', correct: true, category: 'unclassified', reason: '' },
             { index: 3, expected: 'to', actual: 'to', correct: true, category: 'unclassified', reason: '' },
-            { index: 4, expected: 'check', actual: 'check', correct: true, category: 'unclassified', reason: '' },
-            { index: 5, expected: 'in', actual: 'in', correct: true, category: 'unclassified', reason: '' },
+            { index: 4, expected: 'check', actual: 'chek', correct: false, category: 'spelling', reason: '词尾 ck 没听出来' },
+            { index: 5, expected: 'in', actual: '', correct: false, category: 'omitted', reason: 'check in 连读时漏听' },
             { index: 6, expected: 'for', actual: 'for', correct: true, category: 'unclassified', reason: '' },
             { index: 7, expected: 'my', actual: 'my', correct: true, category: 'unclassified', reason: '' },
             { index: 8, expected: 'flight', actual: 'flight', correct: true, category: 'unclassified', reason: '' },
@@ -97,8 +97,36 @@ export const createInitialState = (): PersistedState => ({
           ]
         }
       ]
+    },
+    {
+      id: 'demo-attempt-2',
+      lessonId: 'airport-02',
+      lessonTitle: '安检提示',
+      courseTitle: '日常英语 · 机场与出行',
+      submittedAt: '2026-09-25T09:05:00.000Z',
+      score: 80,
+      teacherFeedback: '',
+      sentenceAttempts: [
+        {
+          sentenceId: 'airport-02-s1',
+          source: 'Please place your laptop in a separate tray.',
+          answer: 'Please place your laptop a seperate tray.',
+          score: 80,
+          tokens: [
+            { index: 0, expected: 'Please', actual: 'Please', correct: true, category: 'unclassified', reason: '' },
+            { index: 1, expected: 'place', actual: 'place', correct: true, category: 'unclassified', reason: '' },
+            { index: 2, expected: 'your', actual: 'your', correct: true, category: 'unclassified', reason: '' },
+            { index: 3, expected: 'laptop', actual: 'laptop', correct: true, category: 'unclassified', reason: '' },
+            { index: 4, expected: 'in', actual: '', correct: false, category: 'omitted', reason: '' },
+            { index: 5, expected: 'a', actual: 'a', correct: true, category: 'unclassified', reason: '' },
+            { index: 6, expected: 'separate', actual: 'seperate', correct: false, category: 'spelling', reason: '中间元音听错' },
+            { index: 7, expected: 'tray', actual: 'tray', correct: true, category: 'unclassified', reason: '' }
+          ]
+        }
+      ]
     }
   ],
+  mistakes: {},
   progress: {
     'airport-01': {
       answers: { 'airport-01-s1': 'I would like to check in for my flight to London' },
