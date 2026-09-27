@@ -1,4 +1,4 @@
-import type { SentenceAttempt, TextSegment, TokenResult } from './types';
+import type { PracticeAttempt, SentenceAttempt, TextSegment, TokenResult, WrongWord } from './types';
 
 export const segmentText = (text: string): TextSegment[] => {
   const matches = text.match(/[\p{L}\p{N}]+(?:['’\-][\p{L}\p{N}]+)*|[^\s\p{L}\p{N}]+/gu) ?? [];
@@ -81,4 +81,78 @@ export function scoreAttempt(sentenceAttempts: SentenceAttempt[]): number {
   if (!totals.length) return 0;
   const correct = totals.filter((token) => token.correct).length;
   return Math.max(0, Math.round((correct / totals.length) * 100));
+}
+
+// 记住一次就沿阶梯往后推一档：10 分钟 → 1 小时 → 1 天 → 3 天 → 7 天 → 15 天 → 30 天。
+export const REVIEW_INTERVALS_MINUTES = [10, 60, 1440, 4320, 10080, 21600, 43200];
+
+export const reviewIntervalLabel = (rememberedCount: number): string => {
+  const minutes = REVIEW_INTERVALS_MINUTES[Math.min(rememberedCount, REVIEW_INTERVALS_MINUTES.length - 1)];
+  if (minutes < 60) return `${minutes} 分钟`;
+  if (minutes < 1440) return `${Math.round(minutes / 60)} 小时`;
+  return `${Math.round(minutes / 1440)} 天`;
+};
+
+export const nextReviewDueAt = (rememberedCount: number, from = Date.now()): string => {
+  const minutes = REVIEW_INTERVALS_MINUTES[Math.min(rememberedCount, REVIEW_INTERVALS_MINUTES.length - 1)];
+  return new Date(from + minutes * 60000).toISOString();
+};
+
+function collectWrongWord(attempt: PracticeAttempt, sentenceId: string, token: TokenResult, pool: WrongWord[]) {
+  const normalized = normalizeToken(token.expected);
+  if (!normalized) return;
+  const existing = pool.find((item) => item.id === normalized);
+  if (existing) {
+    existing.errorCount += 1;
+    existing.word = token.expected;
+    existing.lastActual = token.actual;
+    existing.lastSeenAt = attempt.submittedAt;
+    existing.source = {
+      attemptId: attempt.id,
+      lessonId: attempt.lessonId,
+      lessonTitle: attempt.lessonTitle,
+      courseTitle: attempt.courseTitle,
+      sentenceId,
+      sentence: attempt.sentenceAttempts.find((item) => item.sentenceId === sentenceId)?.source ?? ''
+    };
+    // 再次写错说明还没掌握，回到第一档并立即可练。
+    existing.rememberedCount = 0;
+    existing.dueAt = attempt.submittedAt;
+    return;
+  }
+  pool.push({
+    id: normalized,
+    word: token.expected,
+    errorCount: 1,
+    lastActual: token.actual,
+    lastSeenAt: attempt.submittedAt,
+    source: {
+      attemptId: attempt.id,
+      lessonId: attempt.lessonId,
+      lessonTitle: attempt.lessonTitle,
+      courseTitle: attempt.courseTitle,
+      sentenceId,
+      sentence: attempt.sentenceAttempts.find((item) => item.sentenceId === sentenceId)?.source ?? ''
+    },
+    dueAt: attempt.submittedAt,
+    rememberedCount: 0,
+    createdAt: attempt.submittedAt
+  });
+}
+
+export function mergeAttemptWrongWords(attempt: PracticeAttempt, pool: WrongWord[]) {
+  for (const sentenceAttempt of attempt.sentenceAttempts) {
+    for (const token of sentenceAttempt.tokens) {
+      // 只收录应写而写错/漏写的词；多出来的词没有“正确写法”可练。
+      if (token.correct || !token.expected) continue;
+      collectWrongWord(attempt, sentenceAttempt.sentenceId, token, pool);
+    }
+  }
+}
+
+export function buildWrongWordsFromAttempts(attempts: PracticeAttempt[]): WrongWord[] {
+  const pool: WrongWord[] = [];
+  const ordered = [...attempts].sort((a, b) => a.submittedAt.localeCompare(b.submittedAt));
+  for (const attempt of ordered) mergeAttemptWrongWords(attempt, pool);
+  return pool;
 }

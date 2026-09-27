@@ -1,6 +1,7 @@
 import { reactive, watch } from 'vue';
 import { createInitialState } from './data';
 import type { Lesson, PersistedState, PracticeAttempt } from './types';
+import { buildWrongWordsFromAttempts, mergeAttemptWrongWords } from './utils';
 
 const STORAGE_KEY = 'sologsb-1029-dictation-state-v1';
 
@@ -9,7 +10,11 @@ function loadState(): PersistedState {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as PersistedState;
-      if (parsed.schemaVersion === 1) return parsed;
+      if (parsed.schemaVersion === 1) {
+        // 旧版本没有复习区：把历史作答里的错词补建出来，记录不丢。
+        if (!Array.isArray(parsed.wrongWords)) parsed.wrongWords = buildWrongWordsFromAttempts(parsed.attempts ?? []);
+        return parsed;
+      }
     }
   } catch {
     // Falls back to the sample course when the local draft is malformed.
@@ -41,6 +46,7 @@ export function setDownloaded(lessonId: string, value: boolean) {
 
 export function saveAttempt(attempt: PracticeAttempt) {
   state.attempts.unshift(attempt);
+  mergeAttemptWrongWords(attempt, state.wrongWords);
 }
 
 export function updateTokenClassification(attemptId: string, sentenceId: string, tokenIndex: number, patch: { category?: PracticeAttempt['sentenceAttempts'][number]['tokens'][number]['category']; reason?: string }) {
@@ -54,7 +60,8 @@ export function exportRecords(): string {
     exportedAt: new Date().toISOString(),
     application: 'EchoStep 移动听写',
     attempts: state.attempts,
-    progress: state.progress
+    progress: state.progress,
+    wrongWords: state.wrongWords
   }, null, 2);
 }
 

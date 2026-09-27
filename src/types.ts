@@ -1,5 +1,5 @@
 export type ErrorCategory = 'unclassified' | 'spelling' | 'omitted' | 'extra' | 'punctuation' | 'grammar';
-export type PracticeView = 'library' | 'practice' | 'result' | 'teacher';
+export type PracticeView = 'library' | 'practice' | 'result' | 'teacher' | 'review';
 export type ThemeMode = 'light' | 'dark';
 
 export interface Sentence {
@@ -63,11 +63,33 @@ export interface LessonProgress {
   updatedAt: string;
 }
 
+export interface WrongWordSource {
+  attemptId: string;
+  lessonId: string;
+  lessonTitle: string;
+  courseTitle: string;
+  sentenceId: string;
+  sentence: string;
+}
+
+export interface WrongWord {
+  id: string;
+  word: string;
+  errorCount: number;
+  lastActual: string;
+  lastSeenAt: string;
+  source: WrongWordSource;
+  dueAt: string;
+  rememberedCount: number;
+  createdAt: string;
+}
+
 export interface PersistedState {
   schemaVersion: 1;
   courses: Course[];
   attempts: PracticeAttempt[];
   progress: Record<string, LessonProgress>;
+  wrongWords: WrongWord[];
   activeLessonId: string;
   activeSentenceId: string;
   theme: ThemeMode;
